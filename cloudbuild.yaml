@@ -1,0 +1,29 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_IMAGE
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args: [push, $_IMAGE]
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE
+      - --image=$_IMAGE
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --set-env-vars=ANTHROPIC_MODEL=claude-opus-4-7
+      - --set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,FIREBASE_SERVICE_ACCOUNT_JSON=FIREBASE_SERVICE_ACCOUNT_JSON:latest
+substitutions:
+  _SERVICE: syllabus-evaluator
+  _REGION: asia-southeast1
+  _IMAGE: gcr.io/$PROJECT_ID/syllabus-evaluator:$SHORT_SHA
+images:
+  - $_IMAGE
+options:
+  logging: CLOUD_LOGGING_ONLY
