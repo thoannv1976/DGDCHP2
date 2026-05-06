@@ -58,7 +58,7 @@ async function evaluateGroup(
   try {
     resp = await c.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system:
         'Bạn là chuyên gia đảm bảo chất lượng giáo dục đại học Việt Nam. Trả lời chính xác bằng tiếng Việt và CHỈ trả về JSON khi được yêu cầu.',
       messages: [{ role: 'user', content: groupPrompt(group, syllabus) }],
@@ -66,6 +66,12 @@ async function evaluateGroup(
   } catch (e) {
     console.error(`evaluateGroup(${groupId}) failed`, e);
     throw e;
+  }
+
+  if (resp.stop_reason === 'max_tokens') {
+    throw new Error(
+      `Phản hồi của AI cho nhóm "${group.name}" bị cắt do vượt giới hạn token. Vui lòng thử lại.`,
+    );
   }
 
   const text = resp.content
@@ -138,7 +144,7 @@ export async function reviseSyllabus(
   const c = claude();
   const resp = await c.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 8192,
+    max_tokens: 16384,
     system:
       'Bạn là chuyên gia thiết kế đề cương học phần đại học Việt Nam, viết tiếng Việt học thuật, súc tích, đúng cấu trúc.',
     messages: [
@@ -164,6 +170,12 @@ ${syllabus}
       },
     ],
   });
+
+  if (resp.stop_reason === 'max_tokens') {
+    throw new Error(
+      'Phản hồi của AI bị cắt do vượt giới hạn token khi viết lại đề cương. Vui lòng thử lại.',
+    );
+  }
 
   const text = resp.content
     .filter((b) => b.type === 'text')
