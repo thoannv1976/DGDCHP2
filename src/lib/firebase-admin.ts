@@ -10,6 +10,7 @@ import { getFirestore, Firestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
 let _app: App | null = null;
+let _db: Firestore | null = null;
 
 function buildApp(): App {
   if (_app) return _app;
@@ -43,7 +44,11 @@ function buildApp(): App {
 }
 
 export function adminDb(): Firestore {
-  return getFirestore(buildApp());
+  if (_db) return _db;
+  _db = getFirestore(buildApp());
+  // Allow undefined values in payloads (treated as missing fields).
+  _db.settings({ ignoreUndefinedProperties: true });
+  return _db;
 }
 
 export function adminBucket() {
