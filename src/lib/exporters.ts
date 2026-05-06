@@ -1,4 +1,5 @@
 import 'server-only';
+import { existsSync } from 'fs';
 import {
   Document,
   Packer,
@@ -9,6 +10,29 @@ import {
 } from 'docx';
 import PDFDocument from 'pdfkit';
 import type { Evaluation, SyllabusDoc } from './types';
+
+// pdfkit's built-in fonts are Latin-1 only, so Vietnamese diacritics render
+// as garbage. Register a Unicode TTF for the whole document instead. We look
+// in a few well-known locations so this works in the Alpine production image
+// (ttf-dejavu installed via Dockerfile) as well as common dev machines.
+const FONT_CANDIDATES_REGULAR = [
+  process.env.PDF_FONT_REGULAR,
+  '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/Library/Fonts/Arial Unicode.ttf',
+  '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+].filter(Boolean) as string[];
+
+const FONT_CANDIDATES_BOLD = [
+  process.env.PDF_FONT_BOLD,
+  '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+].filter(Boolean) as string[];
+
+function pickFont(candidates: string[]): string | null {
+  for (const p of candidates) if (existsSync(p)) return p;
+  return null;
+}
 
 function paragraphsFromText(text: string): Paragraph[] {
   return text.split(/\r?\n/).map(
@@ -133,13 +157,29 @@ export async function syllabusToPdf(
   evaluation?: Evaluation | null,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
+    const regularFont = pickFont(FONT_CANDIDATES_REGULAR);
+    if (!regularFont) {
+      reject(
+        new Error(
+          'Không tìm thấy font Unicode để xuất PDF (cần DejaVu Sans hoặc tương đương). Hãy cài ttf-dejavu trên máy chủ hoặc đặt biến PDF_FONT_REGULAR.',
+        ),
+      );
+      return;
+    }
+    const boldFont = pickFont(FONT_CANDIDATES_BOLD) ?? regularFont;
+
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    doc.registerFont('Body', regularFont);
+    doc.registerFont('BodyBold', boldFont);
+    doc.font('Body');
+
     const chunks: Buffer[] = [];
     doc.on('data', (c) => chunks.push(c as Buffer));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.fontSize(18).text(syl.title, { align: 'center' });
+    doc.font('BodyBold').fontSize(18).text(syl.title, { align: 'center' });
+    doc.font('Body');
     doc.moveDown(0.5);
 
     const meta: string[] = [];
@@ -153,29 +193,32 @@ export async function syllabusToPdf(
     }
     doc.moveDown(1);
 
-    doc.fontSize(14).text('Nội dung đề cương', { underline: true });
+    doc.font('BodyBold').fontSize(14).text('Nội dung đề cương', { underline: true });
+    doc.font('Body').fontSize(11);
     doc.moveDown(0.5);
-    doc.fontSize(11).text(syl.content);
+    doc.text(syl.content);
 
     if (evaluation) {
       doc.addPage();
-      doc.fontSize(16).text('Kết quả đánh giá');
+      doc.font('BodyBold').fontSize(16).text('Kết quả đánh giá');
+      doc.font('Body').fontSize(11);
       doc.moveDown(0.5);
-      doc
-        .fontSize(11)
-        .text(`Điểm tổng quát: ${evaluation.overallScore}/5 (model: ${evaluation.model})`);
+      doc.text(
+        `Điểm tổng quát: ${evaluation.overallScore}/5 (model: ${evaluation.model})`,
+      );
       doc.moveDown(0.5);
 
       for (const g of evaluation.groups) {
         doc.moveDown(0.5);
-        doc.fontSize(13).text(`${g.groupName} — ${g.averageScore}/5`);
-        doc.fontSize(10).fillColor('#333').text(g.summary);
+        doc.font('BodyBold').fontSize(13).text(`${g.groupName} — ${g.averageScore}/5`);
+        doc.font('Body').fontSize(10).fillColor('#333').text(g.summary);
         doc.fillColor('#000');
         doc.moveDown(0.3);
         for (const s of g.scores) {
-          doc.fontSize(11).text(`[${s.score}/5] ${s.criterionText}`, {
+          doc.font('BodyBold').fontSize(11).text(`[${s.score}/5] ${s.criterionText}`, {
             continued: false,
           });
+          doc.font('Body');
           if (s.comment) doc.fontSize(10).fillColor('#333').text(s.comment);
           doc.fillColor('#000');
           for (const sg of s.suggestions) {
@@ -184,7 +227,8 @@ export async function syllabusToPdf(
         }
         if (g.prioritizedRevisions.length) {
           doc.moveDown(0.3);
-          doc.fontSize(11).text('Ưu tiên chỉnh sửa:');
+          doc.font('BodyBold').fontSize(11).text('Ưu tiên chỉnh sửa:');
+          doc.font('Body');
           for (const r of g.prioritizedRevisions) {
             doc.fontSize(10).text(`  • ${r}`);
           }
