@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { reviseSyllabus } from '@/lib/evaluator';
+import { describeClaudeError } from '@/lib/claude';
 import { getEvaluation, getSyllabus, updateSyllabus } from '@/lib/repo';
 
 export const runtime = 'nodejs';
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error(e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('revise route failed', e);
+    return NextResponse.json(
+      { error: describeClaudeError(e) },
+      { status: 500 },
+    );
   }
 }
