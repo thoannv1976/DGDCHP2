@@ -15,6 +15,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# DejaVu Sans covers Vietnamese diacritics — needed by pdfkit when exporting
+# syllabi as PDF. Without it the default Helvetica garbles non-Latin-1 chars.
+RUN apk add --no-cache ttf-dejavu
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
