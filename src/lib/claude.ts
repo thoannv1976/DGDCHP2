@@ -53,7 +53,24 @@ export function describeClaudeError(e: unknown): string {
   if (status && status >= 500) {
     return 'Anthropic API đang gặp sự cố. Vui lòng thử lại sau ít phút.';
   }
+  if (status === 400 || name === 'BadRequestError') {
+    return `Yêu cầu Anthropic API không hợp lệ: ${extractApiErrorMessage(msg)}`;
+  }
   return msg || 'Lỗi không xác định khi gọi Anthropic API.';
+}
+
+// Anthropic SDK BadRequestError.message looks like:
+//   `400 {"type":"error","error":{"type":"invalid_request_error","message":"..."}}`
+// Strip the noise so the user sees just the human-readable reason.
+function extractApiErrorMessage(msg: string): string {
+  const braceAt = msg.indexOf('{');
+  if (braceAt < 0) return msg;
+  try {
+    const parsed = JSON.parse(msg.slice(braceAt));
+    return parsed?.error?.message || msg;
+  } catch {
+    return msg;
+  }
 }
 
 /**

@@ -59,7 +59,6 @@ async function evaluateGroup(
     resp = await c.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 4096,
-      temperature: 0.2,
       system:
         'Bạn là chuyên gia đảm bảo chất lượng giáo dục đại học Việt Nam. Trả lời chính xác bằng tiếng Việt và CHỈ trả về JSON khi được yêu cầu.',
       messages: [{ role: 'user', content: groupPrompt(group, syllabus) }],
@@ -140,7 +139,6 @@ export async function reviseSyllabus(
   const resp = await c.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 8192,
-    temperature: 0.3,
     system:
       'Bạn là chuyên gia thiết kế đề cương học phần đại học Việt Nam, viết tiếng Việt học thuật, súc tích, đúng cấu trúc.',
     messages: [
